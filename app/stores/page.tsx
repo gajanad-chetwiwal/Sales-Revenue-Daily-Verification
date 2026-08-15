@@ -157,7 +157,9 @@ export default async function StoresPage({ searchParams }: PageProps) {
                             </div>
                             <div>
                               <label className="label" htmlFor={`token-${store.id}`}>
-                                Replace token / secret (blank = keep)
+                                {store.platform === 'shopify'
+                                  ? 'Replace Secret key (blank = keep)'
+                                  : 'Replace access token (blank = keep)'}
                               </label>
                               <input
                                 id={`token-${store.id}`}
@@ -171,7 +173,8 @@ export default async function StoresPage({ searchParams }: PageProps) {
                             {store.platform === 'shopify' ? (
                               <div className="sm:col-span-2">
                                 <label className="label" htmlFor={`clientid-${store.id}`}>
-                                  Client ID <span className="muted">— blank = legacy shpat_ token</span>
+                                  Client ID{' '}
+                                  <span className="muted">— blank = legacy shpat_ token</span>
                                 </label>
                                 <input
                                   id={`clientid-${store.id}`}
@@ -271,7 +274,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
                 </div>
                 <div>
                   <label className="label" htmlFor="shopifyClientSecret">
-                    Client Secret
+                    Secret key
                   </label>
                   <input
                     id="shopifyClientSecret"
@@ -282,15 +285,16 @@ export default async function StoresPage({ searchParams }: PageProps) {
                   />
                 </div>
                 <p className="muted sm:col-span-2 text-xs">
-                  From the Dev Dashboard: your app → <strong>Settings</strong>. A fresh access
-                  token is minted from these each sync, because tokens issued this way expire
-                  after about 24 hours. Scopes go on the <strong>Versions</strong> tab:{' '}
+                  Both come from the Dev Dashboard: your app → <strong>Settings</strong>. The
+                  Secret key starts with <code>shpss_</code>. A fresh access token is minted from
+                  the pair on every sync, because tokens issued this way expire after about 24
+                  hours. Scopes go on the <strong>Versions</strong> tab:{' '}
                   <code>read_orders</code>, <code>read_shopify_payments_payouts</code>,{' '}
                   <code>read_shopify_payments_disputes</code>,{' '}
                   <code>read_shopify_payments_accounts</code>.
                   <br />
                   Have a pre-2026 custom app instead? Leave Client ID blank and paste its{' '}
-                  <code>shpat_</code> token as the Client Secret.
+                  <code>shpat_</code> token as the Secret key.
                 </p>
               </div>
 
