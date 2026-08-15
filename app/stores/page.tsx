@@ -244,9 +244,14 @@ export default async function StoresPage({ searchParams }: PageProps) {
               <div className="square-only mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="squareLocationId">
-                    Square location ID
+                    Square location ID <span className="muted">— optional</span>
                   </label>
-                  <input id="squareLocationId" name="squareLocationId" className="input" />
+                  <input
+                    id="squareLocationId"
+                    name="squareLocationId"
+                    className="input"
+                    placeholder="leave blank to detect automatically"
+                  />
                 </div>
                 <div>
                   <label className="label" htmlFor="squareEnv">
@@ -274,7 +279,9 @@ export default async function StoresPage({ searchParams }: PageProps) {
                 <p className="muted mt-1 text-xs">
                   Verified against the live API before saving, then encrypted with AES-256-GCM.
                   Shopify needs <code>read_orders</code>; Square needs{' '}
-                  <code>ORDERS_READ</code> and <code>PAYMENTS_READ</code>.
+                  <code>ORDERS_READ</code> and <code>PAYMENTS_READ</code>. For Square, paste the
+                  Access Token — the Application ID and Secret are only for OAuth apps and are not
+                  used here.
                 </p>
               </div>
 

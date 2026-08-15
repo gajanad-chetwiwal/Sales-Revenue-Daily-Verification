@@ -49,16 +49,17 @@ export async function addStoreAction(form: FormData): Promise<void> {
       if (!shopifyDomain) back('Shopify domain is required, e.g. my-shop.myshopify.com');
       await validateShopifyCredentials({ domain: shopifyDomain, accessToken: token });
     } else {
-      squareLocationId = field(form, 'squareLocationId');
       const env = field(form, 'squareEnv') || 'production';
-      if (!squareLocationId) back('Square location ID is required');
       if (env !== 'production' && env !== 'sandbox') back('Square environment is invalid');
       squareEnv = env;
-      await validateSquareCredentials({
+      // Location may be left blank — validation resolves it when the account
+      // has exactly one, and otherwise names the options.
+      const resolved = await validateSquareCredentials({
         accessToken: token,
-        locationId: squareLocationId,
+        locationId: field(form, 'squareLocationId') || undefined,
         environment: squareEnv,
       });
+      squareLocationId = resolved.locationId;
     }
   } catch (error) {
     back(`Credential check failed — ${(error as Error).message}`);

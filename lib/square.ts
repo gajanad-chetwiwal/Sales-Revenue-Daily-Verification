@@ -18,11 +18,22 @@ const MAX_ATTEMPTS = 6;
 const ORDER_PAGE_SIZE = 500;
 const PAYMENT_PAGE_SIZE = 100;
 
-export interface SquareCredentials {
+/** Everything needed to authenticate; no location required. */
+export interface SquareAuth {
   accessToken: string;
-  locationId: string;
   environment: 'production' | 'sandbox';
   apiVersion?: string;
+}
+
+export interface SquareCredentials extends SquareAuth {
+  locationId: string;
+}
+
+export interface SquareLocation {
+  id: string;
+  name: string;
+  currency: string;
+  status: string | null;
 }
 
 interface SquareMoney {
@@ -75,7 +86,7 @@ export class SquareError extends Error {
   }
 }
 
-function baseUrl(credentials: SquareCredentials): string {
+function baseUrl(credentials: SquareAuth): string {
   return credentials.environment === 'sandbox'
     ? 'https://connect.squareupsandbox.com'
     : 'https://connect.squareup.com';
@@ -84,7 +95,7 @@ function baseUrl(credentials: SquareCredentials): string {
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function squareRequest<T>(
-  credentials: SquareCredentials,
+  credentials: SquareAuth,
   path: string,
   init: { method: 'GET' | 'POST'; body?: unknown } = { method: 'GET' },
 ): Promise<T> {
@@ -150,23 +161,61 @@ async function squareRequest<T>(
   );
 }
 
-/** Live credential check used by the store admin UI before saving. */
-export async function validateSquareCredentials(
-  credentials: SquareCredentials,
-): Promise<{ locationName: string; currency: string }> {
+/**
+ * List the locations the token can see. Doubles as the credential check —
+ * if this succeeds, the token is valid.
+ */
+export async function listSquareLocations(auth: SquareAuth): Promise<SquareLocation[]> {
   const payload = await squareRequest<{
-    locations?: { id: string; name?: string; currency?: string }[];
-  }>(credentials, '/v2/locations');
+    locations?: { id: string; name?: string; currency?: string; status?: string }[];
+  }>(auth, '/v2/locations');
 
-  const locations = payload.locations ?? [];
-  const match = locations.find((l) => l.id === credentials.locationId);
-  if (!match) {
-    const available = locations.map((l) => `${l.id} (${l.name ?? 'unnamed'})`).join(', ');
+  return (payload.locations ?? []).map((l) => ({
+    id: l.id,
+    name: l.name ?? l.id,
+    currency: l.currency ?? 'USD',
+    status: l.status ?? null,
+  }));
+}
+
+/**
+ * Live credential check used by the store admin UI before saving.
+ *
+ * `locationId` is optional: most accounts have exactly one location, so making
+ * people hunt for an ID they didn't know they needed is friction for nothing.
+ * With one location we adopt it; with several we name them all so the choice
+ * is obvious.
+ */
+export async function validateSquareCredentials(
+  credentials: SquareAuth & { locationId?: string },
+): Promise<{ locationId: string; locationName: string; currency: string }> {
+  const locations = await listSquareLocations(credentials);
+
+  if (locations.length === 0) {
+    throw new SquareError('This Square account has no locations.');
+  }
+
+  if (!credentials.locationId) {
+    const active = locations.filter((l) => l.status !== 'INACTIVE');
+    const candidates = active.length > 0 ? active : locations;
+    const only = candidates[0];
+    if (candidates.length === 1 && only) {
+      return { locationId: only.id, locationName: only.name, currency: only.currency };
+    }
     throw new SquareError(
-      `Location "${credentials.locationId}" not found on this Square account. Available: ${available || 'none'}`,
+      `This account has ${candidates.length} locations — enter the ID of the one you want: ` +
+        candidates.map((l) => `${l.id} (${l.name}, ${l.currency})`).join('; '),
     );
   }
-  return { locationName: match.name ?? credentials.locationId, currency: match.currency ?? 'USD' };
+
+  const match = locations.find((l) => l.id === credentials.locationId);
+  if (!match) {
+    throw new SquareError(
+      `Location "${credentials.locationId}" not found on this Square account. Available: ` +
+        locations.map((l) => `${l.id} (${l.name})`).join('; '),
+    );
+  }
+  return { locationId: match.id, locationName: match.name, currency: match.currency };
 }
 
 export interface FetchSquareOptions {
