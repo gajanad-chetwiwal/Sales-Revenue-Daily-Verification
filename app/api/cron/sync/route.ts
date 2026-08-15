@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 
 import { constantTimeEquals } from '@/lib/password';
+import { runSync } from '@/lib/sync';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * Scheduled sync entry point (every 15 minutes, see vercel.json).
+ * Scheduled sync entry point (see vercel.json).
  *
  * Guarded by CRON_SECRET rather than the dashboard session — middleware skips
  * /api/cron/* precisely so this check is the only gate. Vercel Cron sends the
@@ -24,13 +25,16 @@ async function handle(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Phase 3 replaces this with the per-store sync orchestration.
-  return NextResponse.json({
-    ok: true,
-    phase: 'scaffold',
-    storesSynced: 0,
-    ranAt: new Date().toISOString(),
-  });
+  try {
+    // Leave ~15s of the 60s budget for writing sync state and responding.
+    const result = await runSync({ deadlineMs: 45_000 });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: (error as Error).message.slice(0, 500) },
+      { status: 500 },
+    );
+  }
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
