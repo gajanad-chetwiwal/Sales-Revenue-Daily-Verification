@@ -62,7 +62,15 @@ async function fetchWindow(
     if (!store.shopifyDomain) {
       throw new Error(`Store "${store.id}" is missing its Shopify domain`);
     }
-    return fetchShopifyOrders(ref, { domain: store.shopifyDomain, accessToken: token }, window);
+    return fetchShopifyOrders(
+      ref,
+      {
+        domain: store.shopifyDomain,
+        accessToken: token,
+        ...(store.shopifyClientId ? { clientId: store.shopifyClientId } : {}),
+      },
+      window,
+    );
   }
 
   if (!store.squareLocationId) {

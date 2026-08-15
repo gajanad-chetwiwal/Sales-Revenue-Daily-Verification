@@ -296,6 +296,7 @@ export default async function DailyReportPage({ searchParams }: PageProps) {
                     <th className="px-3 py-2.5 text-left">Time (IST)</th>
                     <th className="px-3 py-2.5 text-left">Store</th>
                     <th className="px-3 py-2.5 text-left">Order #</th>
+                    <th className="px-3 py-2.5 text-left">Channel</th>
                     <th className="px-3 py-2.5 text-right">Gross</th>
                     <th className="px-3 py-2.5 text-right">Discounts</th>
                     <th className="px-3 py-2.5 text-right">Tax</th>
@@ -309,7 +310,7 @@ export default async function DailyReportPage({ searchParams }: PageProps) {
                 <tbody>
                   {rows.length === 0 ? (
                     <tr className="row-hairline">
-                      <td colSpan={11} className="muted px-3 py-8 text-center text-sm">
+                      <td colSpan={12} className="muted px-3 py-8 text-center text-sm">
                         No transactions to show.
                       </td>
                     </tr>
@@ -328,6 +329,13 @@ export default async function DailyReportPage({ searchParams }: PageProps) {
                         </td>
                         <td className="num px-3 py-2 whitespace-nowrap secondary-ink">
                           {row.orderNumber ?? '—'}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {row.channel ? (
+                            <span className="chip">{row.channel === 'pos' ? 'POS' : 'Online'}</span>
+                          ) : (
+                            <span className="muted text-xs">—</span>
+                          )}
                         </td>
                         <td className="num px-3 py-2 text-right">
                           {formatMinorGrouped(row.gross, row.currency)}

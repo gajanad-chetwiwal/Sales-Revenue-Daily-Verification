@@ -1,6 +1,6 @@
 import { fromMinorUnits } from './money';
 import { getReportDate } from './reportDate';
-import { computeNet, type SalesOrder } from './salesOrder';
+import { computeNet, type SalesChannel, type SalesOrder } from './salesOrder';
 import type { StoreRef } from './shopify';
 
 /**
@@ -45,9 +45,14 @@ interface SquareLineItem {
   gross_sales_money?: SquareMoney;
 }
 
+interface SquareOrderSource {
+  name?: string;
+}
+
 interface SquareOrder {
   id: string;
   location_id?: string;
+  source?: SquareOrderSource;
   created_at: string;
   updated_at?: string;
   state?: string;
@@ -224,6 +229,21 @@ export interface FetchSquareOptions {
   createdUntilExclusive?: Date;
 }
 
+/**
+ * Map Square's order `source.name` onto a channel. Unrecognised sources stay
+ * null rather than defaulting to one — Square is used both in-person and
+ * online, so guessing would misattribute revenue.
+ */
+function toChannel(source: string | undefined): SalesChannel | null {
+  if (!source) return null;
+  const value = source.toLowerCase();
+  if (value.includes('online') || value.includes('ecom') || value.includes('web')) return 'online';
+  if (value.includes('point of sale') || value.includes('register') || value.includes('terminal')) {
+    return 'pos';
+  }
+  return null;
+}
+
 /** Aggregate processing fees and refunds per order id, from the Payments API. */
 async function fetchPaymentTotals(
   credentials: SquareCredentials,
@@ -344,6 +364,7 @@ export async function fetchSquareOrders(
         createdAt,
         reportDate: getReportDate(createdAt),
         currency,
+        channel: toChannel(order.source?.name),
         gross,
         discounts,
         tax,

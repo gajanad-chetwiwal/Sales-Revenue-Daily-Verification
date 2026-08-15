@@ -40,6 +40,7 @@ export async function addStoreAction(form: FormData): Promise<void> {
   }
 
   let shopifyDomain: string | null = null;
+  let shopifyClientId: string | null = null;
   let squareLocationId: string | null = null;
   let squareEnv: 'production' | 'sandbox' | null = null;
   // The platform is the authority on which currency the store trades in;
@@ -52,7 +53,12 @@ export async function addStoreAction(form: FormData): Promise<void> {
         .replace(/^https?:\/\//, '')
         .replace(/\/+$/, '');
       if (!shopifyDomain) back('Shopify domain is required, e.g. my-shop.myshopify.com');
-      const shop = await validateShopifyCredentials({ domain: shopifyDomain, accessToken: token });
+      shopifyClientId = field(form, 'shopifyClientId') || null;
+      const shop = await validateShopifyCredentials({
+        domain: shopifyDomain,
+        accessToken: token,
+        ...(shopifyClientId ? { clientId: shopifyClientId } : {}),
+      });
       detectedCurrency = shop.currency.toUpperCase();
     } else {
       const env = field(form, 'squareEnv') || 'production';
@@ -119,6 +125,7 @@ export async function updateStoreAction(form: FormData): Promise<void> {
         await validateShopifyCredentials({
           domain: store.shopifyDomain ?? '',
           accessToken: token,
+          ...(store.shopifyClientId ? { clientId: store.shopifyClientId } : {}),
         });
       } else {
         await validateSquareCredentials({

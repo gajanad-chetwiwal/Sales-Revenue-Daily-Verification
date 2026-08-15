@@ -228,16 +228,34 @@ export default async function StoresPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
-              <div className="shopify-only mt-3">
-                <label className="label" htmlFor="shopifyDomain">
-                  Shopify domain
-                </label>
-                <input
-                  id="shopifyDomain"
-                  name="shopifyDomain"
-                  className="input"
-                  placeholder="my-shop.myshopify.com"
-                />
+              <div className="shopify-only mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="label" htmlFor="shopifyDomain">
+                    Shopify domain
+                  </label>
+                  <input
+                    id="shopifyDomain"
+                    name="shopifyDomain"
+                    className="input"
+                    placeholder="my-shop.myshopify.com"
+                  />
+                </div>
+                <div>
+                  <label className="label" htmlFor="shopifyClientId">
+                    Client ID <span className="muted">— new apps only</span>
+                  </label>
+                  <input
+                    id="shopifyClientId"
+                    name="shopifyClientId"
+                    className="input"
+                    placeholder="blank for a legacy shpat_ token"
+                  />
+                  <p className="muted mt-1 text-xs">
+                    Apps made in the Dev Dashboard (Jan 2026 onward) have no long-lived token: put
+                    the Client ID here and the Client Secret below, and a fresh 24h token is minted
+                    each sync. Legacy apps: leave blank and paste the <code>shpat_</code> token.
+                  </p>
+                </div>
               </div>
 
               <div className="square-only mt-3 grid gap-3 sm:grid-cols-2">
@@ -265,7 +283,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
 
               <div className="mt-3">
                 <label className="label" htmlFor="token">
-                  API access token
+                  API access token <span className="muted">— or Client Secret</span>
                 </label>
                 <input
                   id="token"

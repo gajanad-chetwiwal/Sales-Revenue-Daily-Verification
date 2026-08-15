@@ -12,6 +12,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export type Platform = 'shopify' | 'square';
+export type SalesChannel = 'pos' | 'online';
 export type SquareEnv = 'production' | 'sandbox';
 export type SyncStatus = 'ok' | 'error';
 
@@ -29,6 +30,13 @@ export const stores = pgTable('stores', {
 
   // Shopify-specific
   shopifyDomain: text('shopify_domain'),
+  /**
+   * Dev Dashboard apps (Jan 2026 onward) authenticate with client credentials
+   * and receive a token that expires in ~24h. When this is set, `tokenEncrypted`
+   * holds the client *secret* and a token is minted per sync. When it is null,
+   * `tokenEncrypted` holds a legacy long-lived `shpat_` token.
+   */
+  shopifyClientId: text('shopify_client_id'),
 
   // Square-specific
   squareLocationId: text('square_location_id'),
@@ -60,6 +68,8 @@ export const transactions = pgTable(
     /** Derived from createdAt via the 6AM IST rule at sync time. */
     reportDate: date('report_date', { mode: 'string' }).notNull(),
     currency: text('currency').notNull(),
+    /** Sales channel the order came through: 'pos', 'online', or null. */
+    channel: text('channel').$type<SalesChannel>(),
 
     grossAmount: numeric('gross_amount', { precision: 12, scale: 2, mode: 'string' })
       .notNull()

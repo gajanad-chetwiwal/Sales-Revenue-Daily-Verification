@@ -8,6 +8,13 @@
       "when": 1786764794852,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786773397225,
+      "tag": "0001_add_channel_and_client_id",
+      "breakpoints": true
     }
   ]
 }

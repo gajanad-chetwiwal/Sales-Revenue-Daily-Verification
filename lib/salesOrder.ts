@@ -1,6 +1,7 @@
 import type { ReportDate } from './reportDate';
 
 export type Platform = 'shopify' | 'square';
+export type SalesChannel = 'pos' | 'online';
 
 /**
  * One order, normalised across platforms. All amounts are integer minor units
@@ -15,6 +16,8 @@ export interface SalesOrder {
   createdAt: Date;
   reportDate: ReportDate;
   currency: string;
+  /** Sales channel, when the platform reports one we recognise. */
+  channel: SalesChannel | null;
   /** Items total before discounts. */
   gross: bigint;
   discounts: bigint;

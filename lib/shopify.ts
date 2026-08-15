@@ -1,6 +1,6 @@
 import { parseDecimalToMinor } from './money';
 import { getReportDate } from './reportDate';
-import { computeNet, type SalesOrder } from './salesOrder';
+import { computeNet, type SalesChannel, type SalesOrder } from './salesOrder';
 
 /**
  * Shopify Admin GraphQL client.
@@ -9,7 +9,8 @@ import { computeNet, type SalesOrder } from './salesOrder';
  * always 0 for Shopify rows. Net therefore equals subtotal minus refunds.
  */
 
-export const DEFAULT_SHOPIFY_API_VERSION = '2026-01';
+/** Current stable version. Shopify supports each release for 12 months. */
+export const DEFAULT_SHOPIFY_API_VERSION = '2026-07';
 
 const MAX_ATTEMPTS = 6;
 const PAGE_SIZE = 100;
@@ -17,7 +18,17 @@ const PAGE_SIZE = 100;
 export interface ShopifyCredentials {
   /** `xxxx.myshopify.com` */
   domain: string;
+  /**
+   * Legacy long-lived `shpat_` token, OR — when `clientId` is set — the app's
+   * client secret, which is exchanged for a short-lived token per sync.
+   */
   accessToken: string;
+  /**
+   * Set for Dev Dashboard apps (Jan 2026 onward). Shopify stopped issuing
+   * long-lived tokens for new apps; they mint one from client credentials that
+   * expires in ~24 hours, so it must be re-minted rather than stored.
+   */
+  clientId?: string;
   apiVersion?: string;
 }
 
@@ -41,6 +52,7 @@ interface ShopifyOrderNode {
   name: string | null;
   createdAt: string;
   test: boolean;
+  sourceName: string | null;
   displayFinancialStatus: string | null;
   currencyCode: string;
   subtotalPriceSet: ShopifyMoneyBag | null;
@@ -95,6 +107,7 @@ const ORDERS_QUERY = `
         name
         createdAt
         test
+        sourceName
         displayFinancialStatus
         currencyCode
         subtotalPriceSet { shopMoney { amount currencyCode } }
@@ -121,6 +134,66 @@ function endpoint(credentials: ShopifyCredentials): string {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+}
+
+/** Minted tokens live ~24h; cache them per shop+app for the process lifetime. */
+const tokenCache = new Map<string, CachedToken>();
+
+/** Refresh a little early so a token cannot expire mid-sync. */
+const TOKEN_SAFETY_MARGIN_MS = 5 * 60 * 1000;
+
+async function mintAccessToken(credentials: ShopifyCredentials): Promise<string> {
+  const clientId = credentials.clientId;
+  if (!clientId) throw new ShopifyError('mintAccessToken called without a client id');
+
+  const domain = credentials.domain.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const cacheKey = `${domain}:${clientId}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now() + TOKEN_SAFETY_MARGIN_MS) {
+    return cached.token;
+  }
+
+  const response = await fetch(`https://${domain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: credentials.accessToken,
+    }).toString(),
+  });
+
+  const body = await response.text();
+  if (!response.ok) {
+    throw new ShopifyError(
+      `Shopify refused the client credentials (${response.status}). Check the Client ID and Secret, and that the app is installed on ${domain}. ${body.slice(0, 200)}`,
+      response.status,
+    );
+  }
+
+  let parsed: { access_token?: string; expires_in?: number };
+  try {
+    parsed = JSON.parse(body) as { access_token?: string; expires_in?: number };
+  } catch {
+    throw new ShopifyError('Shopify returned a non-JSON token response');
+  }
+  if (!parsed.access_token) {
+    throw new ShopifyError('Shopify returned no access_token for these client credentials');
+  }
+
+  const ttlMs = (parsed.expires_in ?? 86_399) * 1000;
+  tokenCache.set(cacheKey, { token: parsed.access_token, expiresAt: Date.now() + ttlMs });
+  return parsed.access_token;
+}
+
+/** Legacy stores hand us a token directly; Dev Dashboard stores mint one. */
+async function resolveAccessToken(credentials: ShopifyCredentials): Promise<string> {
+  return credentials.clientId ? mintAccessToken(credentials) : credentials.accessToken;
+}
+
 /** Execute a GraphQL request, retrying on throttling and transient 5xx. */
 async function shopifyGraphql<T>(
   credentials: ShopifyCredentials,
@@ -128,6 +201,7 @@ async function shopifyGraphql<T>(
   variables: Record<string, unknown> = {},
 ): Promise<GraphQLResponse<T>> {
   let lastError: Error | undefined;
+  const accessToken = await resolveAccessToken(credentials);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     let response: Response;
@@ -136,7 +210,7 @@ async function shopifyGraphql<T>(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': credentials.accessToken,
+          'X-Shopify-Access-Token': accessToken,
         },
         body: JSON.stringify({ query, variables }),
       });
@@ -209,6 +283,23 @@ export async function validateShopifyCredentials(
   return { name: shop.name, domain: shop.myshopifyDomain, currency: shop.currencyCode };
 }
 
+/**
+ * Map Shopify's `sourceName` onto a channel. Anything we do not recognise is
+ * left null rather than guessed — an unknown channel should read as unknown,
+ * not be silently filed under "online".
+ */
+function toChannel(sourceName: string | null): SalesChannel | null {
+  if (!sourceName) return null;
+  const value = sourceName.toLowerCase();
+  if (value === 'pos' || value.includes('point_of_sale') || value.includes('point of sale')) {
+    return 'pos';
+  }
+  if (value === 'web' || value === 'online_store' || value === 'shopify_draft_order') {
+    return 'online';
+  }
+  return null;
+}
+
 function money(bag: ShopifyMoneyBag | null, fallbackCurrency: string): bigint {
   if (!bag?.shopMoney) return 0n;
   return parseDecimalToMinor(bag.shopMoney.amount, bag.shopMoney.currencyCode || fallbackCurrency);
@@ -275,6 +366,7 @@ export async function fetchShopifyOrders(
         createdAt,
         reportDate: getReportDate(createdAt),
         currency,
+        channel: toChannel(node.sourceName),
         gross,
         discounts,
         tax: money(node.totalTaxSet, currency),

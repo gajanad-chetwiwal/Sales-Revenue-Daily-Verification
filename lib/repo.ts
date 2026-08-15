@@ -5,7 +5,7 @@ import { stores, syncState, transactions, type Store } from '@/db/schema';
 
 import { formatMinor, parseDecimalToMinor } from './money';
 import type { ReportDate } from './reportDate';
-import type { SalesOrder } from './salesOrder';
+import type { SalesChannel, SalesOrder } from './salesOrder';
 
 /** Database access. Server-side only — every caller is a server component,
  *  server action, route handler or script. */
@@ -32,6 +32,7 @@ export interface TransactionRow {
   orderNumber: string | null;
   createdAt: Date;
   currency: string;
+  channel: SalesChannel | null;
   gross: bigint;
   discounts: bigint;
   tax: bigint;
@@ -128,6 +129,7 @@ export async function getDailyTransactions(
       orderNumber: transactions.orderNumber,
       createdAt: transactions.createdAt,
       currency: transactions.currency,
+      channel: transactions.channel,
       gross: transactions.grossAmount,
       discounts: transactions.discounts,
       tax: transactions.tax,
@@ -200,6 +202,7 @@ export async function upsertTransactions(orders: SalesOrder[]): Promise<number> 
       createdAt: order.createdAt,
       reportDate: order.reportDate,
       currency: order.currency,
+      channel: order.channel,
       grossAmount: decimal(order.gross, order.currency),
       discounts: decimal(order.discounts, order.currency),
       tax: decimal(order.tax, order.currency),
@@ -221,6 +224,7 @@ export async function upsertTransactions(orders: SalesOrder[]): Promise<number> 
           createdAt: sql`excluded.created_at`,
           reportDate: sql`excluded.report_date`,
           currency: sql`excluded.currency`,
+          channel: sql`excluded.channel`,
           grossAmount: sql`excluded.gross_amount`,
           discounts: sql`excluded.discounts`,
           tax: sql`excluded.tax`,
@@ -295,6 +299,7 @@ export async function createStore(store: {
   platform: 'shopify' | 'square';
   currency: string;
   shopifyDomain?: string | null;
+  shopifyClientId?: string | null;
   squareLocationId?: string | null;
   squareEnv?: 'production' | 'sandbox' | null;
   tokenEncrypted: string;
@@ -306,6 +311,7 @@ export async function createStore(store: {
     platform: store.platform,
     currency: store.currency,
     shopifyDomain: store.shopifyDomain ?? null,
+    shopifyClientId: store.shopifyClientId ?? null,
     squareLocationId: store.squareLocationId ?? null,
     squareEnv: store.squareEnv ?? null,
     tokenEncrypted: store.tokenEncrypted,
