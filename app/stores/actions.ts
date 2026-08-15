@@ -29,17 +29,22 @@ function field(form: FormData, name: string): string {
 export async function addStoreAction(form: FormData): Promise<void> {
   const name = field(form, 'name');
   const platform = field(form, 'platform');
-  const currency = field(form, 'currency').toUpperCase();
+  const requestedCurrency = field(form, 'currency').toUpperCase();
   const token = field(form, 'token');
 
   if (!name) back('Store name is required');
   if (!token) back('API token is required');
   if (platform !== 'shopify' && platform !== 'square') back('Pick a platform');
-  if (!/^[A-Z]{3}$/.test(currency)) back('Currency must be a 3-letter ISO code, e.g. INR');
+  if (requestedCurrency && !/^[A-Z]{3}$/.test(requestedCurrency)) {
+    back('Currency must be a 3-letter ISO code, e.g. USD');
+  }
 
   let shopifyDomain: string | null = null;
   let squareLocationId: string | null = null;
   let squareEnv: 'production' | 'sandbox' | null = null;
+  // The platform is the authority on which currency the store trades in;
+  // a typed value that disagrees would mislabel every amount we store.
+  let detectedCurrency = '';
 
   try {
     if (platform === 'shopify') {
@@ -47,7 +52,8 @@ export async function addStoreAction(form: FormData): Promise<void> {
         .replace(/^https?:\/\//, '')
         .replace(/\/+$/, '');
       if (!shopifyDomain) back('Shopify domain is required, e.g. my-shop.myshopify.com');
-      await validateShopifyCredentials({ domain: shopifyDomain, accessToken: token });
+      const shop = await validateShopifyCredentials({ domain: shopifyDomain, accessToken: token });
+      detectedCurrency = shop.currency.toUpperCase();
     } else {
       const env = field(form, 'squareEnv') || 'production';
       if (env !== 'production' && env !== 'sandbox') back('Square environment is invalid');
@@ -60,10 +66,20 @@ export async function addStoreAction(form: FormData): Promise<void> {
         environment: squareEnv,
       });
       squareLocationId = resolved.locationId;
+      detectedCurrency = resolved.currency.toUpperCase();
     }
   } catch (error) {
     back(`Credential check failed — ${(error as Error).message}`);
   }
+
+  if (requestedCurrency && detectedCurrency && requestedCurrency !== detectedCurrency) {
+    back(
+      `You entered ${requestedCurrency}, but this store reports ${detectedCurrency}. ` +
+        'Leave the field blank to use the reported currency.',
+    );
+  }
+  const currency = detectedCurrency || requestedCurrency;
+  if (!/^[A-Z]{3}$/.test(currency)) back('Could not determine the store currency');
 
   try {
     const id = await generateStoreId(name);

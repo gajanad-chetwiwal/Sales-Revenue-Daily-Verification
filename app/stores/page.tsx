@@ -196,15 +196,14 @@ export default async function StoresPage({ searchParams }: PageProps) {
                 </div>
                 <div>
                   <label className="label" htmlFor="currency">
-                    Currency (ISO)
+                    Currency <span className="muted">— optional</span>
                   </label>
                   <input
                     id="currency"
                     name="currency"
                     className="input"
-                    required
                     maxLength={3}
-                    placeholder="INR"
+                    placeholder="auto-detected"
                     style={{ textTransform: 'uppercase' }}
                   />
                 </div>
