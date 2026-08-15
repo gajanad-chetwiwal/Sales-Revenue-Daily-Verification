@@ -24,10 +24,6 @@ yarn-debug.log*
 yarn-error.log*
 .npm/
 
-# env files — never commit real credentials
-.env
-.env.*
-!.env.example
 
 # vercel
 .vercel
@@ -37,3 +33,10 @@ yarn-error.log*
 
 # test
 coverage/
+
+# env files — never commit real credentials.
+# Negation must come last: a later `.env*` rule would otherwise re-ignore the example.
+.env*
+!.env.example
+
+# vercel cli
