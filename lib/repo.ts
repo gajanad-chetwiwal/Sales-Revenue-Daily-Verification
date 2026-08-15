@@ -251,22 +251,26 @@ export async function markSyncResult(
   storeId: string,
   result: { status: 'ok' | 'error'; error?: string; syncedAt?: Date },
 ): Promise<void> {
+  // Only a successful fetch may advance the watermark. Advancing it on failure
+  // would turn a store's pending 30-day backfill into an incremental sync
+  // starting at the moment it failed — silently skipping all of its history.
+  const set: Record<string, unknown> = {
+    lastStatus: sql`excluded.last_status`,
+    lastError: sql`excluded.last_error`,
+  };
+  if (result.syncedAt) {
+    set.lastSyncedAt = sql`excluded.last_synced_at`;
+  }
+
   await getDb()
     .insert(syncState)
     .values({
       storeId,
-      lastSyncedAt: result.syncedAt ?? new Date(),
+      lastSyncedAt: result.syncedAt ?? null,
       lastStatus: result.status,
       lastError: result.error ?? null,
     })
-    .onConflictDoUpdate({
-      target: syncState.storeId,
-      set: {
-        lastSyncedAt: sql`excluded.last_synced_at`,
-        lastStatus: sql`excluded.last_status`,
-        lastError: sql`excluded.last_error`,
-      },
-    });
+    .onConflictDoUpdate({ target: syncState.storeId, set });
 }
 
 export async function getSyncState(storeId: string) {
@@ -323,11 +327,12 @@ export async function createStore(store: {
 
 export async function updateStore(
   id: string,
-  changes: { name?: string; tokenEncrypted?: string },
+  changes: { name?: string; tokenEncrypted?: string; shopifyClientId?: string | null },
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
   if (changes.name !== undefined) patch.name = changes.name;
   if (changes.tokenEncrypted !== undefined) patch.tokenEncrypted = changes.tokenEncrypted;
+  if (changes.shopifyClientId !== undefined) patch.shopifyClientId = changes.shopifyClientId;
   if (Object.keys(patch).length === 0) return;
   await getDb().update(stores).set(patch).where(eq(stores.id, id));
 }

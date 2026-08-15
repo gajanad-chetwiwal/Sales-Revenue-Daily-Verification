@@ -220,10 +220,31 @@ async function shopifyGraphql<T>(
       continue;
     }
 
-    if (response.status === 401 || response.status === 403) {
+    // Distinguish the failure modes: they need different fixes from the user.
+    if (response.status === 401) {
       throw new ShopifyError(
-        'Shopify rejected the access token (401/403). Check the token and its scopes (read_orders).',
-        response.status,
+        credentials.clientId
+          ? 'Shopify rejected the minted token (401). Re-check the Client ID and Secret, and that the app is still installed.'
+          : 'Shopify rejected the access token (401) — it is invalid, expired, or revoked. Reconnect the store.',
+        401,
+      );
+    }
+    if (response.status === 403) {
+      throw new ShopifyError(
+        'Shopify denied the request (403) — the app is missing a required scope. Add read_orders (plus the Shopify Payments scopes) on the app version, then reinstall the app so the new scopes take effect.',
+        403,
+      );
+    }
+    if (response.status === 402) {
+      throw new ShopifyError(
+        "This shop's plan does not include access to this API (402).",
+        402,
+      );
+    }
+    if (response.status === 423) {
+      throw new ShopifyError(
+        'This Shopify shop is locked or unavailable (423) — the store itself is frozen, not the credentials.',
+        423,
       );
     }
     if (response.status === 404) {
@@ -262,6 +283,14 @@ async function shopifyGraphql<T>(
     }
 
     if (payload.errors?.length) {
+      // Missing scopes usually arrive as a 200 with ACCESS_DENIED, and the
+      // message names the scope required — pass it through verbatim.
+      const denied = payload.errors.find((e) => e.extensions?.code === 'ACCESS_DENIED');
+      if (denied) {
+        throw new ShopifyError(
+          `Shopify denied access — ${denied.message} Add the scope on the app version, then reinstall the app.`,
+        );
+      }
       throw new ShopifyError(payload.errors.map((e) => e.message).join('; '));
     }
 

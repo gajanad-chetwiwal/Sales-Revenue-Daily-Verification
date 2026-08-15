@@ -168,6 +168,20 @@ export default async function StoresPage({ searchParams }: PageProps) {
                                 className="input"
                               />
                             </div>
+                            {store.platform === 'shopify' ? (
+                              <div className="sm:col-span-2">
+                                <label className="label" htmlFor={`clientid-${store.id}`}>
+                                  Client ID <span className="muted">— blank = legacy shpat_ token</span>
+                                </label>
+                                <input
+                                  id={`clientid-${store.id}`}
+                                  name="shopifyClientId"
+                                  className="input"
+                                  autoComplete="off"
+                                  defaultValue={store.shopifyClientId ?? ''}
+                                />
+                              </div>
+                            ) : null}
                             <div className="sm:col-span-2">
                               <button type="submit" className="btn btn-primary">
                                 Save changes

@@ -26,6 +26,28 @@ function field(form: FormData, name: string): string {
  * Add a store. Credentials are proved against the live API *before* anything is
  * written — a store that cannot authenticate never reaches the database.
  */
+
+/**
+ * Shopify credential prefixes: `shpat_` is an Admin API access token, `shpss_`
+ * is an app *secret*. Pasting the secret without a Client ID means we never do
+ * the OAuth exchange and send the secret as a token, which Shopify rejects with
+ * an unhelpful 401 — so name the mistake precisely instead.
+ */
+function assertShopifySecretShape(token: string, clientId: string | null): void {
+  if (!clientId && token.startsWith('shpss_')) {
+    back(
+      'That looks like a Client Secret (shpss_), but Client ID is empty. ' +
+        'Enter the Client ID from the Dev Dashboard as well — or paste a legacy shpat_ Admin API token instead.',
+    );
+  }
+  if (clientId && token.startsWith('shpat_')) {
+    back(
+      'That looks like an Admin API token (shpat_), not a Client Secret. ' +
+        'Leave Client ID blank to use the token directly, or paste the Client Secret instead.',
+    );
+  }
+}
+
 export async function addStoreAction(form: FormData): Promise<void> {
   const name = field(form, 'name');
   const platform = field(form, 'platform');
@@ -60,6 +82,7 @@ export async function addStoreAction(form: FormData): Promise<void> {
         .replace(/\/+$/, '');
       if (!shopifyDomain) back('Shopify domain is required, e.g. my-shop.myshopify.com');
       shopifyClientId = field(form, 'shopifyClientId') || null;
+      assertShopifySecretShape(token, shopifyClientId);
       const shop = await validateShopifyCredentials({
         domain: shopifyDomain,
         accessToken: token,
@@ -124,14 +147,21 @@ export async function updateStoreAction(form: FormData): Promise<void> {
   if (!store) back('Store not found');
   if (!name) back('Store name is required');
 
+  // Client ID is editable so a store saved with the wrong credential shape can
+  // be repaired in place rather than deleted and re-added.
+  const rawClientId = field(form, 'shopifyClientId');
+  const clientIdProvided = form.has('shopifyClientId');
+  const nextClientId = clientIdProvided ? rawClientId || null : (store.shopifyClientId ?? null);
+
   let tokenEncrypted: string | undefined;
   if (token) {
     try {
       if (store.platform === 'shopify') {
+        assertShopifySecretShape(token, nextClientId);
         await validateShopifyCredentials({
           domain: store.shopifyDomain ?? '',
           accessToken: token,
-          ...(store.shopifyClientId ? { clientId: store.shopifyClientId } : {}),
+          ...(nextClientId ? { clientId: nextClientId } : {}),
         });
       } else {
         await validateSquareCredentials({
@@ -146,7 +176,11 @@ export async function updateStoreAction(form: FormData): Promise<void> {
     tokenEncrypted = encryptToken(token);
   }
 
-  await updateStore(id, { name, ...(tokenEncrypted ? { tokenEncrypted } : {}) });
+  await updateStore(id, {
+    name,
+    ...(tokenEncrypted ? { tokenEncrypted } : {}),
+    ...(store.platform === 'shopify' && clientIdProvided ? { shopifyClientId: nextClientId } : {}),
+  });
   revalidatePath('/stores');
   revalidatePath('/');
   back(`Updated "${name}".`, 'ok');
