@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
 
   // TEMPORARY: env-injection diagnostics must bypass the password gate,
   // because the gate itself is what is failing. Removed with the routes.
-  if (pathname.startsWith('/api/_diag')) {
+  if (pathname.startsWith('/api/diag')) {
     return NextResponse.next();
   }
 

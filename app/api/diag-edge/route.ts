@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-// TEMPORARY diagnostic — Edge twin of /api/_diag. Presence only, never values.
+// TEMPORARY diagnostic — Edge twin of /api/diag. Presence only, never values.
 // Distinguishes "sensitive vars absent at runtime" from "Next inlined
 // process.env into the Edge bundle at build time".
 export const runtime = 'edge';
