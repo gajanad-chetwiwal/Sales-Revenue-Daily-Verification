@@ -6,6 +6,7 @@ import { formatReportDateLabel, getCurrentReportDate } from '@/lib/reportDate';
 
 const NAV_LINKS = [
   { href: '/', label: 'Daily report', key: 'report' },
+  { href: '/sheet', label: 'Sheet', key: 'sheet' },
   { href: '/stores', label: 'Stores', key: 'stores' },
 ] as const;
 
@@ -14,7 +15,7 @@ export function AppShell({
   active,
 }: {
   children: ReactNode;
-  active: 'report' | 'stores';
+  active: 'report' | 'sheet' | 'stores';
 }) {
   const today = getCurrentReportDate();
 

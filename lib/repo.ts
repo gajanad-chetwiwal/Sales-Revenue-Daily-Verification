@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
 import { getDb } from '@/db';
 import { stores, syncState, transactions, type Store } from '@/db/schema';
@@ -340,4 +340,46 @@ export async function updateStore(
 /** No hard delete in v1 — deactivating stops syncing but keeps history. */
 export async function setStoreActive(id: string, active: boolean): Promise<void> {
   await getDb().update(stores).set({ active }).where(eq(stores.id, id));
+}
+
+export interface DailyGrossRow {
+  reportDate: string;
+  currency: string;
+  gross: bigint;
+  orderCount: number;
+}
+
+/** Gross per reporting day per currency, across every store. */
+export async function getDailyGrossByCurrency(
+  from: string,
+  to: string,
+): Promise<DailyGrossRow[]> {
+  const rows = await getDb()
+    .select({
+      reportDate: transactions.reportDate,
+      currency: transactions.currency,
+      gross: sql<string>`coalesce(sum(${transactions.grossAmount}), 0)`,
+      orderCount: sql<string>`count(*)`,
+    })
+    .from(transactions)
+    .where(and(gte(transactions.reportDate, from), lte(transactions.reportDate, to)))
+    .groupBy(transactions.reportDate, transactions.currency)
+    .orderBy(asc(transactions.reportDate));
+
+  return rows.map((row) => ({
+    reportDate: row.reportDate,
+    currency: row.currency,
+    gross: parseDecimalToMinor(row.gross, row.currency),
+    orderCount: Number(row.orderCount),
+  }));
+}
+
+/** Distinct months (YYYY-MM) that have any transactions, newest first. */
+export async function listTransactionMonths(): Promise<string[]> {
+  const rows = await getDb()
+    .select({ month: sql<string>`to_char(${transactions.reportDate}, 'YYYY-MM')` })
+    .from(transactions)
+    .groupBy(sql`to_char(${transactions.reportDate}, 'YYYY-MM')`)
+    .orderBy(sql`to_char(${transactions.reportDate}, 'YYYY-MM') desc`);
+  return rows.map((r) => r.month);
 }

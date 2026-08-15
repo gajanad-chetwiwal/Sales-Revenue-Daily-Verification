@@ -6,6 +6,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -111,6 +112,27 @@ export const syncState = pgTable('sync_state', {
   lastStatus: text('last_status').$type<SyncStatus>(),
   lastError: text('last_error'),
 });
+
+/**
+ * Daily FX rates, stored once per date so historical figures never re-value
+ * themselves. `asOfDate` records the date the rate was actually published —
+ * FX markets close at weekends, so a Sunday carries Friday's rate.
+ */
+export const fxRates = pgTable(
+  'fx_rates',
+  {
+    rateDate: date('rate_date', { mode: 'string' }).notNull(),
+    base: text('base').notNull(),
+    quote: text('quote').notNull(),
+    rate: numeric('rate', { precision: 18, scale: 8, mode: 'string' }).notNull(),
+    asOfDate: date('as_of_date', { mode: 'string' }).notNull(),
+    source: text('source').notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.rateDate, table.base, table.quote] })],
+);
+
+export type FxRate = typeof fxRates.$inferSelect;
 
 export type Store = typeof stores.$inferSelect;
 export type NewStore = typeof stores.$inferInsert;

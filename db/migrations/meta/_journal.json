@@ -15,6 +15,13 @@
       "when": 1786773397225,
       "tag": "0001_add_channel_and_client_id",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786794421032,
+      "tag": "0002_add_fx_rates",
+      "breakpoints": true
     }
   ]
 }
