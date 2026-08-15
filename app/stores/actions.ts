@@ -30,11 +30,17 @@ export async function addStoreAction(form: FormData): Promise<void> {
   const name = field(form, 'name');
   const platform = field(form, 'platform');
   const requestedCurrency = field(form, 'currency').toUpperCase();
-  const token = field(form, 'token');
 
   if (!name) back('Store name is required');
-  if (!token) back('API token is required');
   if (platform !== 'shopify' && platform !== 'square') back('Pick a platform');
+
+  // Each platform names its secret differently: Shopify apps hand out a client
+  // secret, Square hands out an access token.
+  const token =
+    platform === 'shopify' ? field(form, 'shopifyClientSecret') : field(form, 'squareAccessToken');
+  if (!token) {
+    back(platform === 'shopify' ? 'Client Secret is required' : 'Square access token is required');
+  }
   if (requestedCurrency && !/^[A-Z]{3}$/.test(requestedCurrency)) {
     back('Currency must be a 3-letter ISO code, e.g. USD');
   }

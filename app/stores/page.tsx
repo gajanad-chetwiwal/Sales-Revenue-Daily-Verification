@@ -157,7 +157,7 @@ export default async function StoresPage({ searchParams }: PageProps) {
                             </div>
                             <div>
                               <label className="label" htmlFor={`token-${store.id}`}>
-                                Replace token (leave blank to keep)
+                                Replace token / secret (blank = keep)
                               </label>
                               <input
                                 id={`token-${store.id}`}
@@ -228,8 +228,12 @@ export default async function StoresPage({ searchParams }: PageProps) {
                 </div>
               </div>
 
+              {/* Shopify: Dev Dashboard apps issue client credentials, not a
+                  long-lived token. Fields are not marked `required` because a
+                  hidden required input blocks form submission — the server
+                  validates instead. */}
               <div className="shopify-only mt-3 grid gap-3 sm:grid-cols-2">
-                <div>
+                <div className="sm:col-span-2">
                   <label className="label" htmlFor="shopifyDomain">
                     Shopify domain
                   </label>
@@ -242,20 +246,38 @@ export default async function StoresPage({ searchParams }: PageProps) {
                 </div>
                 <div>
                   <label className="label" htmlFor="shopifyClientId">
-                    Client ID <span className="muted">— new apps only</span>
+                    Client ID
                   </label>
                   <input
                     id="shopifyClientId"
                     name="shopifyClientId"
                     className="input"
-                    placeholder="blank for a legacy shpat_ token"
+                    autoComplete="off"
                   />
-                  <p className="muted mt-1 text-xs">
-                    Apps made in the Dev Dashboard (Jan 2026 onward) have no long-lived token: put
-                    the Client ID here and the Client Secret below, and a fresh 24h token is minted
-                    each sync. Legacy apps: leave blank and paste the <code>shpat_</code> token.
-                  </p>
                 </div>
+                <div>
+                  <label className="label" htmlFor="shopifyClientSecret">
+                    Client Secret
+                  </label>
+                  <input
+                    id="shopifyClientSecret"
+                    name="shopifyClientSecret"
+                    type="password"
+                    autoComplete="off"
+                    className="input"
+                  />
+                </div>
+                <p className="muted sm:col-span-2 text-xs">
+                  From the Dev Dashboard: your app → <strong>Settings</strong>. A fresh access
+                  token is minted from these each sync, because tokens issued this way expire
+                  after about 24 hours. Scopes go on the <strong>Versions</strong> tab:{' '}
+                  <code>read_orders</code>, <code>read_shopify_payments_payouts</code>,{' '}
+                  <code>read_shopify_payments_disputes</code>,{' '}
+                  <code>read_shopify_payments_accounts</code>.
+                  <br />
+                  Have a pre-2026 custom app instead? Leave Client ID blank and paste its{' '}
+                  <code>shpat_</code> token as the Client Secret.
+                </p>
               </div>
 
               <div className="square-only mt-3 grid gap-3 sm:grid-cols-2">
@@ -279,28 +301,30 @@ export default async function StoresPage({ searchParams }: PageProps) {
                     <option value="sandbox">sandbox</option>
                   </select>
                 </div>
+                <div className="sm:col-span-2">
+                  <label className="label" htmlFor="squareAccessToken">
+                    Square access token
+                  </label>
+                  <input
+                    id="squareAccessToken"
+                    name="squareAccessToken"
+                    type="password"
+                    autoComplete="off"
+                    className="input"
+                  />
+                  <p className="muted mt-1 text-xs">
+                    Needs <code>ORDERS_READ</code>, <code>PAYMENTS_READ</code>,{' '}
+                    <code>PAYOUTS_READ</code>, <code>DISPUTES_READ</code>,{' '}
+                    <code>BANK_ACCOUNTS_READ</code>, <code>MERCHANT_PROFILE_READ</code>. The
+                    Application ID and Secret are for OAuth apps and are not used here.
+                  </p>
+                </div>
               </div>
 
-              <div className="mt-3">
-                <label className="label" htmlFor="token">
-                  API access token <span className="muted">— or Client Secret</span>
-                </label>
-                <input
-                  id="token"
-                  name="token"
-                  type="password"
-                  autoComplete="off"
-                  className="input"
-                  required
-                />
-                <p className="muted mt-1 text-xs">
-                  Verified against the live API before saving, then encrypted with AES-256-GCM.
-                  Shopify needs <code>read_orders</code>; Square needs{' '}
-                  <code>ORDERS_READ</code> and <code>PAYMENTS_READ</code>. For Square, paste the
-                  Access Token — the Application ID and Secret are only for OAuth apps and are not
-                  used here.
-                </p>
-              </div>
+              <p className="muted mt-3 text-xs">
+                Credentials are verified against the live API before anything is saved, then
+                encrypted with AES-256-GCM.
+              </p>
 
               <div className="mt-4">
                 <button type="submit" className="btn btn-primary">
